@@ -1,0 +1,80 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_name: testapp-linux
+          - os: windows-latest
+            artifact_name: testapp-windows.exe
+          - os: macos-latest
+            artifact_name: testapp-macos
+
+    runs-on: ${{ matrix.os }}
+    permissions:
+      id-token: write
+      contents: write
+      attestations: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Dependencies
+        run: pip install pyinstaller
+
+      - name: Build Executable (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          pyinstaller --onefile --windowed --name "${{ matrix.artifact_name }}" app.py
+          mkdir -p dist_final
+          cp dist/${{ matrix.artifact_name }} dist_final/
+
+      - name: Build Executable (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          pyinstaller --onefile --windowed --name "testapp-windows" app.py
+          mkdir dist_final
+          copy dist\testapp-windows.exe dist_final\
+
+      - name: Attest Build Provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: 'dist_final/*'
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: dist_final/*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true
