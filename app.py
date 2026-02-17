@@ -8,7 +8,7 @@ def show_hello():
 
 def main():
     root = tk.Tk()
-    root.title("测试页面2")
+    root.title("测试页面3")
     root.geometry("300x200")
     root.resizable(False, False)
 
